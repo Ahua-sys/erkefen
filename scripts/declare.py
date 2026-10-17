@@ -23,7 +23,9 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rules_lib  # noqa: E402
 
-BASE = "http://dierketang.gzhu.edu.cn/second_class_sj"
+# 平台地址：优先环境变量 ERKEFEN_PLATFORM_URL，其次 --base-url 参数；
+# 都未提供时用默认域名（广州大学第二课堂）。新学校用户首次使用时提供前两者之一。
+BASE = os.environ.get("ERKEFEN_PLATFORM_URL") or "http://dierketang.gzhu.edu.cn/second_class_sj"
 BSK = os.path.expanduser("~/.local/bin/bsk.exe")
 
 # 2025 级三类映射（用户为 2025 级；非 2025 级用分类下拉里的无前缀项）
@@ -240,7 +242,7 @@ def pick(sid, field_keywords, option_text, desc):
     time.sleep(0.5)
 
 
-def ensure_logged_in(sid):
+def ensure_logged_in(sid, base):
     """不在登录页就直接返回；在登录页则走统一身份认证并请求人工协助。"""
     # 先等页面渲染出 RootWebArea（ navigate 后 a11y 树可能还没就绪）
     def root_ready(obs, refs):
@@ -261,7 +263,7 @@ def ensure_logged_in(sid):
         "--prompt", "请在统一身份认证页面完成登录（学号+密码，含验证码/扫码）。登录成功回到第二课堂后我会继续。",
         "--timeout", "600s", timeout=660)
     # 登录后回到首页
-    bsk("navigate", f"{BASE}/home", "--session", sid)
+    bsk("navigate", f"{base}/home", "--session", sid)
     wait_until(sid, lambda obs, refs: any(
         r["kind"] == "RootWebArea" and "登录" not in r["label"] for r in refs),
         tries=15, interval=2.0, desc="登录完成")
@@ -338,11 +340,21 @@ def main():
     ap.add_argument("--cohort", default=None,
                     help="学生入学年级，如 2025/2024。决定适用政策与平台分类；"
                          "2025级及以后用广大〔2025〕81号规则，2024级及以前用经统学院旧细则规则。建议总是提供")
+    ap.add_argument("--base-url", default=None,
+                    help="第二课堂平台地址，如 http://<域名>/second_class_sj。"
+                         "非广州大学平台的用户必须提供（或设置环境变量 ERKEFEN_PLATFORM_URL）；"
+                         "广州大学用户可省略（默认 http://dierketang.gzhu.edu.cn/second_class_sj）")
     ap.add_argument("--collective", default="no", choices=["yes", "no"], help="是否集体项目，默认 no")
     ap.add_argument("--no-submit", action="store_true", help="只填到上传后，不点确定申请（验证用）")
     ap.add_argument("--rule-id", default=None, help="可选：规则库规则ID，用于核对申报学分与平台分类")
     ap.add_argument("--preview", action="store_true", help="只打印申报计划（字段/附件/规则依据），不驱动浏览器")
     args = ap.parse_args()
+
+    # 平台地址：--base-url > 环境变量 ERKEFEN_PLATFORM_URL > 默认域名（广州大学）
+    base = (args.base_url or BASE).rstrip("/")
+    if not base and not args.preview:
+        sys.exit("未提供平台地址：请用 --base-url 传第二课堂平台地址"
+                 "（形如 http://<域名>/second_class_sj），或设置环境变量 ERKEFEN_PLATFORM_URL")
 
     if not os.path.isfile(args.image):
         sys.exit(f"截图不存在: {args.image}")
@@ -356,6 +368,7 @@ def main():
         plan = {
             "mode": "preview（未驱动浏览器，未提交）",
             "cohort": args.cohort,
+            "base_url": base or None,
             "project_name": args.project_name,
             "credit": credit,
             "category": category,
@@ -376,8 +389,10 @@ def main():
             "submit": not args.no_submit,
         }
         print(json.dumps(plan, ensure_ascii=False, indent=2))
-        print("\n确认无误后：去掉 --preview 正式填写" +
-              ("（当前为 --no-submit，不会提交）" if args.no_submit else "并提交"))
+        tail = ("（当前为 --no-submit，不会提交）" if args.no_submit else "并提交")
+        if not base:
+            tail += "；正式提交前还需提供平台地址（--base-url 或环境变量 ERKEFEN_PLATFORM_URL）"
+        print("\n确认无误后：去掉 --preview 正式填写" + tail)
         return
 
     if not os.path.exists(BSK):
@@ -395,8 +410,8 @@ def main():
     print(f"session={sid}")
     try:
         # 1. 首页（带登录兜底）
-        bsk("navigate", f"{BASE}/home", "--session", sid)
-        ensure_logged_in(sid)
+        bsk("navigate", f"{base}/home", "--session", sid)
+        ensure_logged_in(sid, base)
 
         # 2. 我的 → 我的申报 → 申请申报
         # 底部 tab 必须真实点击（JS click 不触发路由）；且要等首页活动列表加载完才渲染成按钮

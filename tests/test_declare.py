@@ -172,6 +172,19 @@ class DeclareTest(unittest.TestCase):
         self.assertEqual(declare.CATEGORY_SHORTCUTS["体育"], "【2025级】体育运动与审美体验类")
         self.assertEqual(declare.CATEGORY_SHORTCUTS["思政"], "【2025级】思想成长与实践公益教育类")
 
+    # 11c. 平台地址可配置：--base-url 覆盖默认域名（非广州大学用户场景）
+    def test_base_url_override(self):
+        out = self.run_main("--image", self.img, "--project-name", "x",
+                            "--rule-id", "TY-2025-001", "--year", "2025",
+                            "--cohort", "2025", "--base-url", "http://other.school/sj",
+                            "--preview")
+        self.assertIn("http://other.school/sj", out)
+        # 默认域名（不传 --base-url）仍可用
+        out = self.run_main("--image", self.img, "--project-name", "x",
+                            "--rule-id", "TY-2025-001", "--year", "2025",
+                            "--cohort", "2025", "--preview")
+        self.assertIn("dierketang.gzhu.edu.cn", out)
+
     # 11b. observe 解析（两类行都不能丢）与弹窗判断不被破坏
     def test_parse_refs_and_popup(self):
         obs = ('@layers 2 focus=L1\nL1 mask cover=100%\n'
