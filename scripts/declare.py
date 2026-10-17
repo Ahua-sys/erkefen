@@ -9,6 +9,8 @@
       --credit 0.1 --category "【2025级】体育运动与审美体验类" --year 2025 --collective no [--no-submit]
 
 --category 也接受简写：三创 / 体育 / 思政（自动映射到 2025 级对应分类）。
+--rule-id <规则ID>（可选）：从 rules/rules.jsonl 取分值并核对类别；给了它可省略 --credit；
+    与规则计算分值不一致时拒绝执行。--preview 只打印申报计划（字段/附件/规则依据），不驱动浏览器。
 """
 import argparse
 import json
@@ -17,6 +19,9 @@ import re
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import rules_lib  # noqa: E402
 
 BASE = "http://dierketang.gzhu.edu.cn/second_class_sj"
 BSK = os.path.expanduser("~/.local/bin/bsk.exe")
@@ -262,24 +267,100 @@ def ensure_logged_in(sid):
         tries=15, interval=2.0, desc="登录完成")
 
 
+def resolve_submission(args):
+    """阶段 E/F：汇总申报字段。--rule-id 给定则与规则库核对分值/类别。
+
+    返回 (category_dropdown_text, credit_str, rule_or_None, notes)。
+    不一致时 sys.exit（宁可不申报，不带着错分值提交）。
+    """
+    rule, notes = None, []
+    credit = args.credit
+    if args.rule_id:
+        rule = rules_lib.get_rule(args.rule_id)
+        if not rule:
+            sys.exit(f"规则库中不存在规则: {args.rule_id}（用 scripts/search_rules.py search 查询）")
+        calc = rules_lib.compute_points(rule)
+        pts = calc["final_points"]
+        if pts is None:
+            sys.exit(f"规则 {args.rule_id} 无固定分值（需人工认定），不能用 --rule-id 自动填值；"
+                     f"请人工核定后显式传 --credit 并在申报说明中注明依据")
+        if credit is None:
+            credit = str(pts)
+        elif abs(float(credit) - pts) > 1e-9:
+            sys.exit(f"--credit {credit} 与规则 {args.rule_id} 的计算分值 {pts} 不一致"
+                     f"（依据：{rule['source_clause_or_table']}，第 {rule['source_page']} 页）。"
+                     f"如证明上的数值不同，请先核对规则/年级，再显式申报")
+        expect = rules_lib.platform_category(rule["category"])
+        given = CATEGORY_SHORTCUTS.get(args.category, args.category) if args.category else None
+        if given and expect and given != expect:
+            sys.exit(f"--category {args.category!r} 与规则 {args.rule_id} 的类别「{rule['category']}」"
+                     f"（对应平台分类 {expect}）不一致")
+        if not args.category:
+            args.category = expect or rules_lib.category_to_folder(rule["category"])
+        notes.append(f"规则依据: {args.rule_id} {rule['activity_name']} "
+                     f"（{rule['source_document']} {rule['source_clause_or_table']} p{rule['source_page']}）")
+        if rule.get("cap"):
+            notes.append(f"上限: {rule['cap'].get('note')}")
+        if rule.get("team_rank_coefficients"):
+            notes.append("集体项目注意: 分值已按基础值填入；如为学生团队且未计排名系数，"
+                         "请先用 scripts/search_rules.py compute --team-rank N 计算后再传 --credit")
+        if rule.get("verification_status") != "已核验":
+            notes.append(f"该规则核验状态为「{rule.get('verification_status')}》，提交前需人工确认")
+    if not credit:
+        sys.exit("必须提供 --credit，或提供 --rule-id 从规则库取分值")
+    return CATEGORY_SHORTCUTS.get(args.category, args.category), str(credit), rule, notes
+
+
 def main():
     ap = argparse.ArgumentParser(description="二课分新建申报自动化")
     ap.add_argument("--image", required=True, help="要上传的截图路径（jpg/png，≤500KB）")
     ap.add_argument("--project-name", required=True, help="项目名称（写截图上的活动名）")
-    ap.add_argument("--credit", required=True, help="申报学分，如 0.1")
-    ap.add_argument("--category", required=True, help="项目分类：分类下拉里的原文，或简写 三创/体育/思政")
+    ap.add_argument("--credit", default=None, help="申报学分，如 0.1（提供 --rule-id 时可省略）")
+    ap.add_argument("--category", default=None, help="项目分类：分类下拉里的原文，或简写 三创/体育/思政（提供 --rule-id 时可省略）")
     ap.add_argument("--year", required=True, help="项目获奖自然年，如 2025")
     ap.add_argument("--collective", default="no", choices=["yes", "no"], help="是否集体项目，默认 no")
     ap.add_argument("--no-submit", action="store_true", help="只填到上传后，不点确定申请（验证用）")
+    ap.add_argument("--rule-id", default=None, help="可选：规则库规则ID，用于核对申报学分与平台分类")
+    ap.add_argument("--preview", action="store_true", help="只打印申报计划（字段/附件/规则依据），不驱动浏览器")
     args = ap.parse_args()
 
-    if not os.path.exists(BSK):
-        sys.exit(f"找不到 bsk CLI: {BSK}（先装 BrowserSkill CLI）")
     if not os.path.isfile(args.image):
         sys.exit(f"截图不存在: {args.image}")
     size_kb = os.path.getsize(args.image) / 1024
     if size_kb > 500:
         sys.exit(f"截图 {size_kb:.0f}KB 超过 500KB 上限，先压缩")
+
+    category, credit, rule, rule_notes = resolve_submission(args)
+
+    if args.preview:
+        plan = {
+            "mode": "preview（未驱动浏览器，未提交）",
+            "project_name": args.project_name,
+            "credit": credit,
+            "category": category,
+            "year": args.year,
+            "collective": "是" if args.collective == "yes" else "否",
+            "image": os.path.abspath(args.image),
+            "image_size_kb": round(size_kb, 1),
+            "rule_id": args.rule_id,
+            "rule": {"activity_name": rule.get("activity_name"),
+                     "category": rule.get("category"),
+                     "points": rule.get("points"),
+                     "calculation_method": rule.get("calculation_method"),
+                     "cap": rule.get("cap"),
+                     "evidence_requirements": rule.get("evidence_requirements"),
+                     "source": f"{rule.get('source_document')} {rule.get('source_clause_or_table')} p{rule.get('source_page')}",
+                     "verification_status": rule.get("verification_status")} if rule else None,
+            "notes": rule_notes,
+            "submit": not args.no_submit,
+        }
+        print(json.dumps(plan, ensure_ascii=False, indent=2))
+        print("\n确认无误后：去掉 --preview 正式填写" +
+              ("（当前为 --no-submit，不会提交）" if args.no_submit else "并提交"))
+        return
+
+    if not os.path.exists(BSK):
+        sys.exit(f"找不到 bsk CLI: {BSK}（先装 BrowserSkill CLI）")
 
     # 前置检查：daemon + 扩展
     try:
@@ -288,8 +369,6 @@ def main():
         sys.exit(f"daemon 未响应: {e}\n先在宿主环境跑: bsk daemon start --foreground")
     if not st.get("browsers"):
         sys.exit("没有浏览器连接：请先手动打开 Edge 并确认 BrowserSkill 扩展已连接")
-
-    category = CATEGORY_SHORTCUTS.get(args.category, args.category)
 
     sid = bsk_json("session", "start", "--json")["session_id"]
     print(f"session={sid}")
@@ -342,7 +421,7 @@ def main():
             return lambda refs: labeled_textboxes(refs).get(label)
 
         out = with_fresh_ref(sid, find_box("申报学分"), "申报学分",
-                             lambda ref: ("fill", ref, "--value", args.credit, "--session", sid),
+                             lambda ref: ("fill", ref, "--value", credit, "--session", sid),
                              "fill ok")
         if "fill ok" not in out:
             raise RuntimeError(f"填写申报学分失败: {out[:200]}")
@@ -352,7 +431,7 @@ def main():
         if "fill ok" not in out:
             raise RuntimeError(f"填写项目名称失败: {out[:200]}")
         time.sleep(1.5)
-        print(f"申报学分: {args.credit} | 项目名称: {args.project_name}")
+        print(f"申报学分: {credit} | 项目名称: {args.project_name}")
 
         # 5. 是否集体项目 + 获奖自然年
         pick(sid, ["集体项目"], {"yes": "是", "no": "否"}[args.collective], "是否集体项目")
@@ -390,7 +469,7 @@ def main():
                              tries=10, interval=1.5, desc="提交结果")
             ok = "未审核" in obs or "审核" in obs
             print(("提交成功" if ok else "已提交但未确认审核状态") +
-                  f"：{args.project_name} / {category} / {args.credit} 分")
+                  f"：{args.project_name} / {category} / {credit} 分")
     finally:
         try:
             bsk("session", "stop", sid)

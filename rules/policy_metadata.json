@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-10-17",
+  "source_of_truth": "rules/rules.jsonl",
+  "note": "本文件为政策级元数据；单条活动规则见 rules/rules.jsonl，由 scripts/search_rules.py 查询。",
+  "policies": [
+    {
+      "policy_id": "GZU-2KC-2025-81",
+      "doc_number": "广大〔2025〕81号",
+      "title": "广州大学关于修订《广州大学本科生第二课堂学分实施办法》的通知",
+      "measure_title": "广州大学本科生第二课堂学分实施办法",
+      "version": "2025年7月第二次修订（2017年第7次校长办公会议审议通过，2021年第一次修订，2025年7月第二次修订）",
+      "issued_date": "2025-09-01",
+      "effective_from": "2025-09-01",
+      "applicable_cohorts": "2025级及以后入学的全日制本科生",
+      "cohort_min_year": 2025,
+      "cohort_note": "休学、停学、延迟毕业等特殊情况学生按照其入学年份计算（第十条）",
+      "source_clause": "第十条",
+      "supersedes": {
+        "doc_number": "广大〔2021〕80号",
+        "note": "2024级及之前本科生按《广州大学本科生第二课堂学分实施办法（2021年7月修订）》（广大〔2021〕80号）文件执行"
+      },
+      "source_file": "广大[2025]81号（广州大学关于修订《广州大学本科生第二课堂学分实施办法》的通知）(2).pdf",
+      "source_pages": "1-16（第1页通知正文；第2-4页实施办法；第5-15页附表；第16页印发信息）",
+      "rules_available": true,
+      "verification_status": "已核验",
+      "graduation_requirement": {
+        "total_credits_min": 6,
+        "per_category_min": {
+          "思想成长与实践公益教育类": 2,
+          "创新与创业实训实践类": 2,
+          "体育运动与审美体验类": 2
+        },
+        "exemption": "县级及以上医院或本校医院证明身体有残障者可适当减免",
+        "source_page": 3,
+        "source_clause": "第四条、第五条",
+        "source_excerpt": "还需至少累计获得6个第二课堂学分方能毕业；县级及以上医院或本校医院证明身体有残障者可适当减免。"
+      },
+      "recognition_procedure": {
+        "non_graduate": {
+          "frequency": "每年9月集中认定一次",
+          "apply_window": "9月10日—9月20日",
+          "class_review": "9月20日—9月25日（班级团支部考核小组）",
+          "college_review": "10月10日前（各学院团委）",
+          "university_review": "10月20日前（校团委抽检、复审）"
+        },
+        "graduate": {
+          "frequency": "毕业当年3月集中认定一次",
+          "apply_window": "3月15日—3月25日",
+          "class_review": "3月25日—3月30日（班级团支部考核小组）",
+          "college_review": "4月15日前（各学院团委）",
+          "university_review": "4月25日前（校团委抽检、复审）"
+        },
+        "graduation_check": "学生毕业前由教务处审核是否达到第二课堂学分修读要求，校团委负责发放第二课堂成绩单",
+        "fraud_rule": "弄虚作假者一经查实，取消该项目所得分值，并依照《广州大学学生违纪处分规定（2025年7月修订）》的相关规定进行处理",
+        "source_page": "3-4",
+        "source_clause": "第七条、第八条、第九条"
+      },
+      "category_folder_map": {
+        "思想成长与实践公益教育类": "思政类",
+        "创新与创业实训实践类": "三创类",
+        "体育运动与审美体验类": "体育类"
+      },
+      "platform_category_map": {
+        "_note": "平台下拉选项与政策类别、截图文件夹名称可能使用不同表述，三者是不同字段，不要混淆。",
+        "2025_cohort": {
+          "思政类": "【2025级】思想成长与实践公益教育类",
+          "三创类": "【2025级】创新与创业实训实践类",
+          "体育类": "【2025级】体育运动与审美体验类"
+        },
+        "pre_2025_cohort_dropdown": [
+          "体育运动与审美体验类",
+          "创新与创业实训实践类",
+          "思想政治课社会实践类",
+          "劳动教育课程类"
+        ]
+      },
+      "evidence_default_note": "政策未明确列举证明材料的条目，按平台申报要求提供活动证明/获奖证书等原件扫描件（附件单张≤500KB，最多3张）。"
+    },
+    {
+      "policy_id": "GZU-2KC-2021-80",
+      "doc_number": "广大〔2021〕80号",
+      "title": "广州大学本科生第二课堂学分实施办法（2021年7月修订）",
+      "applicable_cohorts": "2024级及之前入学的全日制本科生",
+      "cohort_max_year": 2024,
+      "source_file": null,
+      "rules_available": false,
+      "verification_status": "待核验",
+      "notes": "原文尚未提供。在取得官方原文前，不得将2025版规则套用于2024级及之前年级，也不得虚构旧版分值；需要用户提供广大〔2021〕80号官方文件后另行建档。"
+    }
+  ]
+}
