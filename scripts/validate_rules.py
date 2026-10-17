@@ -17,45 +17,82 @@ from collections import Counter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rules_lib as L  # noqa: E402
 
-# 广大〔2025〕81号 必需要件覆盖清单：key = 条款/表格标识，where = rules/metadata/none
+# 原文覆盖清单：key = 条款/表格标识，where = rules/metadata/none，policy = 所属政策
+# 两套政策分列：广大〔2025〕81号（2025级及以后）+ 经统学院2022细则（2024级及以前）
+P25 = "GZU-2KC-2025-81"
+P22 = "GZU-JXT-2KC-2022"
 COVERAGE_CHECKLIST = [
-    ("第四条", "rules", "毕业6学分与残障减免"),
-    ("第五条", "rules", "三类各至少2学分"),
-    ("第七条", "rules", "集中认定时间与程序"),
-    ("第八条", "metadata", "校团委统筹、教务处最终认定"),
-    ("第九条", "rules", "弄虚作假处理"),
-    ("第十条", "metadata", "适用年级与旧版衔接"),
-    ("第十一条", "none", "解释修订主体（程序性条款，无需建档）"),
-    ("附表一、（一）", "rules", "党团课培训"),
-    ("附表一、（二）", "rules", "思想政治教育活动（线下/线上）"),
-    ("附表一、（三）", "rules", "青马工程"),
-    ("附表一、（四）", "rules", "突出表现表彰"),
-    ("附表一、（五）", "rules", "精神文明活动表彰"),
-    ("附表一、（六）", "rules", "学生干部与社团荣誉"),
-    ("附表一、（七）", "rules", "寒暑假社会实践"),
-    ("附表一、（八）", "rules", "非寒暑假社会实践（分时长档）"),
-    ("附表一、（九）", "rules", "志愿服务（分时长档）"),
-    ("附表一、（十）", "rules", "西部计划/三支一扶"),
-    ("附表一、（十一）", "rules", "无偿献血"),
-    ("附表一、（十二）", "rules", "技能培训与资格考试"),
-    ("附表一、（十三）", "rules", "社会实践/志愿服务荣誉"),
-    ("附表二、（一）", "rules", "学术科技活动立项与结项"),
-    ("附表二、（二）表1", "rules", "学术科技竞赛参赛计分"),
-    ("附表二、（二）表2", "rules", "学术科技竞赛获奖计分"),
-    ("附表二、（三）表3", "rules", "学术科技成果计分"),
-    ("附表二、（三）2", "rules", "艺术类作品/体育实践成果认定"),
-    ("附表二、（四）", "rules", "学术报告讲座等"),
-    ("附表二、（五）1", "rules", "在校大学生创业"),
-    ("附表二、（五）2", "rules", "科研项目/社会调查/创新实验"),
-    ("附表二、（五）3", "rules", "生涯论坛/职业课程/招聘会"),
-    ("附表二、（五）4", "rules", "其他特殊创新创业活动"),
-    ("附表三、（一）", "rules", "经典百书阅读与诵读"),
-    ("附表三、（二）表4", "rules", "文体比赛获奖计分"),
-    ("附表三、（三）", "rules", "参加文体比赛/观摩"),
-    ("附表三、（四）1", "rules", "文学作品发表"),
-    ("附表三、（四）2", "rules", "视频音频图像录用转载"),
-    ("附表三、（四）3", "rules", "新闻报道"),
-    ("附表四", "rules", "其他确需计算的学分"),
+    ("第四条", "rules", "毕业6学分与残障减免", P25),
+    ("第五条", "rules", "三类各至少2学分", P25),
+    ("第七条", "rules", "集中认定时间与程序", P25),
+    ("第八条", "metadata", "校团委统筹、教务处最终认定", P25),
+    ("第九条", "rules", "弄虚作假处理", P25),
+    ("第十条", "metadata", "适用年级与旧版衔接", P25),
+    ("第十一条", "none", "解释修订主体（程序性条款，无需建档）", P25),
+    ("附表一、（一）", "rules", "党团课培训", P25),
+    ("附表一、（二）", "rules", "思想政治教育活动（线下/线上）", P25),
+    ("附表一、（三）", "rules", "青马工程", P25),
+    ("附表一、（四）", "rules", "突出表现表彰", P25),
+    ("附表一、（五）", "rules", "精神文明活动表彰", P25),
+    ("附表一、（六）", "rules", "学生干部与社团荣誉", P25),
+    ("附表一、（七）", "rules", "寒暑假社会实践", P25),
+    ("附表一、（八）", "rules", "非寒暑假社会实践（分时长档）", P25),
+    ("附表一、（九）", "rules", "志愿服务（分时长档）", P25),
+    ("附表一、（十）", "rules", "西部计划/三支一扶", P25),
+    ("附表一、（十一）", "rules", "无偿献血", P25),
+    ("附表一、（十二）", "rules", "技能培训与资格考试", P25),
+    ("附表一、（十三）", "rules", "社会实践/志愿服务荣誉", P25),
+    ("附表二、（一）", "rules", "学术科技活动立项与结项", P25),
+    ("附表二、（二）表1", "rules", "学术科技竞赛参赛计分", P25),
+    ("附表二、（二）表2", "rules", "学术科技竞赛获奖计分", P25),
+    ("附表二、（三）表3", "rules", "学术科技成果计分", P25),
+    ("附表二、（三）2", "rules", "艺术类作品/体育实践成果认定", P25),
+    ("附表二、（四）", "rules", "学术报告讲座等", P25),
+    ("附表二、（五）1", "rules", "在校大学生创业", P25),
+    ("附表二、（五）2", "rules", "科研项目/社会调查/创新实验", P25),
+    ("附表二、（五）3", "rules", "生涯论坛/职业课程/招聘会", P25),
+    ("附表二、（五）4", "rules", "其他特殊创新创业活动", P25),
+    ("附表三、（一）", "rules", "经典百书阅读与诵读", P25),
+    ("附表三、（二）表4", "rules", "文体比赛获奖计分", P25),
+    ("附表三、（三）", "rules", "参加文体比赛/观摩", P25),
+    ("附表三、（四）1", "rules", "文学作品发表", P25),
+    ("附表三、（四）2", "rules", "视频音频图像录用转载", P25),
+    ("附表三、（四）3", "rules", "新闻报道", P25),
+    ("附表四", "rules", "其他确需计算的学分", P25),
+    # ---- 经统学院第二课堂学分实施办法（2022修订，2024级及以前） ----
+    ("第四条", "rules", "毕业9学分与残障减免", P22),
+    ("第五条", "rules", "四类各至少2学分（含劳动教育、经典百书诵读至少1）", P22),
+    ("第七条", "rules", "集中认定时间与程序", P22),
+    ("第八条", "rules", "弄虚作假处理", P22),
+    ("第九条", "rules", "2021级起试行与入学年份计算", P22),
+    ("附表1 一（一）", "rules", "表1学科竞赛获奖分值", P22),
+    ("附表1 一（一）备注", "rules", "表1备注（降级/累计6分/立项结题/金银铜/无淘汰赛）", P22),
+    ("附表1 一（二）", "rules", "表2科技成果分值（论文/专利/产品/课题）", P22),
+    ("附表1 一（二）2", "rules", "艺术作品发表或展览选用", P22),
+    ("附表1 一（三）", "rules", "表3学术报告讲座分值", P22),
+    ("附表1 一（四）", "rules", "大创/注册创业/科研调查/其他创新活动", P22),
+    ("附表1 二（一）", "rules", "经典百书阅读与诵读（至少1学分）", P22),
+    ("附表1 二（二）", "rules", "表4文体比赛获奖分值（含十佳/破纪录/参赛分）", P22),
+    ("附表1 二（三）", "rules", "表5文体活动观众加分（含签到要求）", P22),
+    ("附表1 二（四）", "rules", "文艺作品/征文/新闻报道", P22),
+    ("附表1 三（一）", "rules", "党课学习", P22),
+    ("附表1 三（二）", "rules", "思想引领活动/青年大学习", P22),
+    ("附表1 三（三）", "rules", "青马工程", P22),
+    ("附表1 三（四）", "rules", "助人为乐/见义勇为表彰", P22),
+    ("附表1 三（五）", "rules", "精神文明活动表彰（分级）", P22),
+    ("附表1 三（六）", "rules", "学生干部与社团职务（分级）", P22),
+    ("附表1 三（七）", "rules", "社会实践/就业实习（分时长档）", P22),
+    ("附表1 三（八）", "rules", "志愿服务（分时长档）", P22),
+    ("附表1 三（九）", "rules", "西部计划/三支一扶/海外服务", P22),
+    ("附表1 三（十）", "rules", "无偿献血", P22),
+    ("附表1 三（十一）", "rules", "公益性社会服务", P22),
+    ("附表1 三（十二）", "rules", "表6技能证书（含雅思托福/证从/教资/ACCA）", P22),
+    ("附表1 三（十三）", "rules", "实践公益活动荣誉（分级）", P22),
+    ("附表1 四", "rules", "劳动教育课程类（理论0.5+实践1.5，大三前修满）", P22),
+    ("附表1 五", "rules", "其他确需计算的学分", P22),
+    ("附表2 二、1", "rules", "集体项目折算两方式", P22),
+    ("附表2 二、2", "rules", "未获奖参赛分（学科0.15/文体0.2）", P22),
+    ("附表2 二、3", "rules", "同一比赛重复参加不重复加分", P22),
 ]
 
 PAGE_RE = re.compile(r"^\d+(-\d+)?$")
@@ -122,8 +159,8 @@ def main():
             if set(coefs) != need:
                 errors.append(f"{rid}: team_rank_coefficients 键必须为 1/2/3/4/5_and_below（现为 {sorted(coefs)}）")
 
-    # 2. 重复内容记录（同活动+同级别+同等级+同分值）
-    sig = Counter((r.get("category"), r.get("activity_name"), r.get("competition_level"),
+    # 2. 重复内容记录（同政策+同活动+同级别+同等级+同分值；跨政策同名是正常的，如两套政策都有"其他确需计算的学分"）
+    sig = Counter((r.get("policy_id"), r.get("category"), r.get("activity_name"), r.get("competition_level"),
                    r.get("award_level_or_rank"), r.get("points")) for r in rules)
     for k, n in sig.items():
         if n > 1:
@@ -145,25 +182,25 @@ def main():
     else:
         warnings.append("index.json 不存在，请运行 --rebuild-index 生成")
 
-    # 4. 原文覆盖检查
+    # 4. 原文覆盖检查（按政策分组：同一条款号在两套政策里都要有对应规则）
     meta_text = norm(json.dumps(metadata, ensure_ascii=False))
-    clause_text = norm(" ".join(r.get("source_clause_or_table") or "" for r in rules))
     coverage = []
-    for key, where, desc in COVERAGE_CHECKLIST:
+    for key, where, desc, pol in COVERAGE_CHECKLIST:
         k = norm(key)
         if where == "rules":
-            hits = [r["rule_id"] for r in rules if k in norm(r.get("source_clause_or_table"))]
-            coverage.append({"item": key, "desc": desc, "where": where,
+            hits = [r["rule_id"] for r in rules
+                    if r.get("policy_id") == pol and k in norm(r.get("source_clause_or_table"))]
+            coverage.append({"item": key, "desc": desc, "where": where, "policy": pol,
                              "covered": bool(hits), "rules": hits[:6]})
             if not hits:
-                errors.append(f"覆盖检查失败: 原文 {key}（{desc}）没有对应规则")
+                errors.append(f"覆盖检查失败: {pol} 原文 {key}（{desc}）没有对应规则")
         elif where == "metadata":
             ok = k in meta_text
-            coverage.append({"item": key, "desc": desc, "where": where, "covered": ok})
+            coverage.append({"item": key, "desc": desc, "where": where, "policy": pol, "covered": ok})
             if not ok:
                 errors.append(f"覆盖检查失败: 原文 {key}（{desc}）未在 policy_metadata.json 中体现")
         else:
-            coverage.append({"item": key, "desc": desc, "where": where, "covered": True,
+            coverage.append({"item": key, "desc": desc, "where": where, "policy": pol, "covered": True,
                              "note": "程序性条款，无需建档"})
 
     by_cat = Counter(r.get("category") for r in rules)

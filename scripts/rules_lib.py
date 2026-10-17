@@ -16,16 +16,28 @@ METADATA_JSON = os.path.join(RULES_DIR, "policy_metadata.json")
 SOURCE_MAP_JSON = os.path.join(RULES_DIR, "source_map.json")
 
 POLICY_2025 = "GZU-2KC-2025-81"
+POLICY_2022 = "GZU-JXT-2KC-2022"
 POLICY_2021 = "GZU-2KC-2021-80"
 
-CATEGORIES = ["思想成长与实践公益教育类", "创新与创业实训实践类", "体育运动与审美体验类", "政策总则"]
-CATEGORY_ALIASES = {
+CATEGORIES = ["思想成长与实践公益教育类", "创新与创业实训实践类", "体育运动与审美体验类",
+              "思想政治课社会实践类", "劳动教育课程类", "政策总则"]
+# 类别别名按政策分流：同名别名在两套政策里指向不同类别全称
+CATEGORY_ALIASES_2025 = {
     "思政": "思想成长与实践公益教育类", "思想政治": "思想成长与实践公益教育类",
     "思想成长": "思想成长与实践公益教育类", "公益": "思想成长与实践公益教育类",
     "三创": "创新与创业实训实践类", "创新": "创新与创业实训实践类",
     "创业": "创新与创业实训实践类", "创新创业": "创新与创业实训实践类",
     "体育": "体育运动与审美体验类", "体育与审美": "体育运动与审美体验类",
     "审美": "体育运动与审美体验类", "文体": "体育运动与审美体验类",
+}
+CATEGORY_ALIASES_OLD = {
+    "思政": "思想政治课社会实践类", "思想政治": "思想政治课社会实践类",
+    "思政实践": "思想政治课社会实践类", "社会实践": "思想政治课社会实践类",
+    "三创": "创新与创业实训实践类", "创新": "创新与创业实训实践类",
+    "创业": "创新与创业实训实践类", "创新创业": "创新与创业实训实践类",
+    "体育": "体育运动与审美体验类", "体育与审美": "体育运动与审美体验类",
+    "审美": "体育运动与审美体验类", "文体": "体育运动与审美体验类",
+    "劳动": "劳动教育课程类", "劳动教育": "劳动教育课程类",
 }
 TYPE_ALIASES = {
     "参赛": "participation", "参加": "participation", "参与": "participation",
@@ -101,11 +113,14 @@ def policy_for_cohort(metadata, cohort):
     return None, f"未找到适用于 {year} 级的政策"
 
 
-def resolve_category(category):
+def resolve_category(category, policy_id=None):
     if not category:
         return None
     c = category.strip()
-    return CATEGORY_ALIASES.get(c, c if c in CATEGORIES else None)
+    if c in CATEGORIES:
+        return c
+    table = CATEGORY_ALIASES_OLD if policy_id == POLICY_2022 else CATEGORY_ALIASES_2025
+    return table.get(c)
 
 
 def resolve_type(ptype):
@@ -163,10 +178,11 @@ def search_rules(query, cohort=None, category=None, ptype=None, limit=5,
                             "doc_number": policy.get("doc_number"),
                             "applicable_cohorts": policy.get("applicable_cohorts")}
 
-    cat = resolve_category(category)
+    cat = resolve_category(category, policy["policy_id"] if policy else None)
     if category and not cat:
         result["status"] = "bad_request"
-        result["message"] = f"未知类别: {category}（可用: 思政/三创/体育 或政策类别全称）"
+        aliases = "思政/三创/体育/劳动教育" if (policy and policy["policy_id"] == POLICY_2022) else "思政/三创/体育"
+        result["message"] = f"未知类别: {category}（可用: {aliases} 或政策类别全称）"
         return result
     typ = resolve_type(ptype)
     if ptype and not typ:
@@ -192,9 +208,11 @@ def search_rules(query, cohort=None, category=None, ptype=None, limit=5,
     top = scored[:limit]
 
     if not top:
+        doc = policy.get("doc_number") if policy else "广大〔2025〕81号"
+        catch_all = "PL-2022-013" if (policy and policy["policy_id"] == POLICY_2022) else "PL-2025-010"
         result["status"] = "not_found"
-        result["message"] = ("未找到匹配规则（待核验）。可能原因：活动不在广大〔2025〕81号附表内、"
-                             "关键词不一致、或需要人工认定（见 PL-2025-010）。"
+        result["message"] = (f"未找到匹配规则（待核验）。可能原因：活动不在{doc}附表内、"
+                             f"关键词不一致、或需要人工认定（见 {catch_all}）。"
                              "请补充活动全称/类别/获奖情况，或查阅官方文件后补建规则；在核验前不得直接申报。")
         return result
 
@@ -338,19 +356,23 @@ def build_source_map(rules, metadata=None):
 
 
 def category_to_folder(category):
-    """政策类别 → 截图归档文件夹（与 erkefen.py 的三类文件夹一致）。"""
+    """政策类别 → 截图归档文件夹（与 erkefen.py 的三类文件夹一致；劳动教育类无对应文件夹）。"""
     m = {"思想成长与实践公益教育类": "思政类",
+         "思想政治课社会实践类": "思政类",
          "创新与创业实训实践类": "三创类",
          "体育运动与审美体验类": "体育类"}
     return m.get(category)
 
 
 def platform_category(category, cohort=2025, metadata=None):
-    """政策类别 → 平台申报下拉选项（2025 级带前缀；非 2025 级见 metadata 备注）。"""
+    """政策类别 → 平台申报下拉选项。
+
+    2025 级：带【2025级】前缀（policy_metadata 2025_cohort）。
+    2024 级及以前：无前缀四类（policy_metadata pre_2025_cohort，未实测标记待核验）。
+    劳动教育课程类无截图文件夹对应，直传政策类别名。
+    """
     metadata = metadata if metadata is not None else load_metadata()
     folder = category_to_folder(category)
-    if not folder:
-        return None
     try:
         year = int(str(cohort).replace("级", ""))
     except (TypeError, ValueError):
@@ -359,4 +381,9 @@ def platform_category(category, cohort=2025, metadata=None):
         for p in metadata.get("policies", []):
             if p.get("policy_id") == POLICY_2025:
                 return p.get("platform_category_map", {}).get("2025_cohort", {}).get(folder)
-    return folder  # 非 2025 级：平台使用无前缀选项，需人工对照（旧版政策未建档）
+        return None
+    for p in metadata.get("policies", []):
+        if p.get("policy_id") == POLICY_2022:
+            m = p.get("platform_category_map", {}).get("pre_2025_cohort", {})
+            return m.get(folder) or category
+    return None

@@ -137,14 +137,18 @@ class RuleSearchTest(unittest.TestCase):
         self.assertEqual(r["policy"]["policy_id"], L.POLICY_2025)
         r = self.search("党团课", cohort=2027)
         self.assertEqual(r["policy"]["policy_id"], L.POLICY_2025)
-        r = self.search("党团课", cohort=2024)
-        self.assertEqual(r["status"], "policy_not_available")
-        self.assertIn("广大〔2021〕80号", r["message"])
-        self.assertIn("不得", r["message"])
-        r = self.search("党团课", cohort=2023)
-        self.assertEqual(r["status"], "policy_not_available")
+        # 2024 级及以前（经统学院）→ 学院旧细则，不再是 policy_not_available
+        for c in (2024, 2023, 2021):
+            r = self.search("党团课", cohort=c)
+            self.assertEqual(r["policy"]["policy_id"], L.POLICY_2022, f"{c}级应命中学院旧细则")
+            self.assertEqual(r["status"], "ok")
+            self.assertEqual(r["candidates"][0]["rule_id"], "ZZ-2022-001")
+            self.assertEqual(r["candidates"][0]["points"], 0.3)
         pol, gate = L.policy_for_cohort(self.meta, "2025级")
         self.assertEqual(pol["policy_id"], L.POLICY_2025)
+        self.assertIsNone(gate)
+        pol, gate = L.policy_for_cohort(self.meta, "2024级")
+        self.assertEqual(pol["policy_id"], L.POLICY_2022)
         self.assertIsNone(gate)
 
     # 多候选时要求补充信息，不擅自认定
@@ -162,7 +166,10 @@ class RuleValidationTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stdout[-2000:])
         rep = json.loads(p.stdout)
         self.assertTrue(rep["ok"])
-        self.assertEqual(rep["rule_count"], 152)
+        # 两套政策：2025版 152 + 学院旧细则 200
+        self.assertEqual(rep["rule_count"], 352)
+        self.assertEqual(rep["by_policy"].get("GZU-2KC-2025-81"), 152)
+        self.assertEqual(rep["by_policy"].get("GZU-JXT-2KC-2022"), 200)
         self.assertEqual(rep["coverage_covered"], rep["coverage_total"])
 
     # 9. 规则库缺少必要字段或出现重复 ID 时能够发现

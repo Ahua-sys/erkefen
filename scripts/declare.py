@@ -275,10 +275,25 @@ def resolve_submission(args):
     """
     rule, notes = None, []
     credit = args.credit
+    cohort = getattr(args, "cohort", None)
     if args.rule_id:
         rule = rules_lib.get_rule(args.rule_id)
         if not rule:
             sys.exit(f"规则库中不存在规则: {args.rule_id}（用 scripts/search_rules.py search 查询）")
+        # 年级与规则政策交叉核对：两套政策的规则不跨年级套用
+        pol_cohort = {"GZU-2KC-2025-81": (2025, None), "GZU-JXT-2KC-2022": (None, 2024)}
+        lo, hi = pol_cohort.get(rule["policy_id"], (None, None))
+        if cohort:
+            try:
+                cy = int(str(cohort).strip().replace("级", ""))
+            except ValueError:
+                sys.exit(f"无法解析 --cohort {cohort!r}（应为入学年份，如 2025）")
+            if lo is not None and cy < lo:
+                sys.exit(f"--cohort {cy} 与规则 {args.rule_id} 的政策不匹配：该规则属 {rule['policy_id']}"
+                         f"（{lo}级及以后适用），{cy}级应使用学院旧细则规则（GZU-JXT-2KC-2022）")
+            if hi is not None and cy > hi:
+                sys.exit(f"--cohort {cy} 与规则 {args.rule_id} 的政策不匹配：该规则属 {rule['policy_id']}"
+                         f"（{hi}级及以前适用），{cy}级应使用广大〔2025〕81号规则（GZU-2KC-2025-81）")
         calc = rules_lib.compute_points(rule)
         pts = calc["final_points"]
         if pts is None:
@@ -290,13 +305,15 @@ def resolve_submission(args):
             sys.exit(f"--credit {credit} 与规则 {args.rule_id} 的计算分值 {pts} 不一致"
                      f"（依据：{rule['source_clause_or_table']}，第 {rule['source_page']} 页）。"
                      f"如证明上的数值不同，请先核对规则/年级，再显式申报")
-        expect = rules_lib.platform_category(rule["category"])
+        expect = rules_lib.platform_category(rule["category"], cohort=cohort or 2025)
         given = CATEGORY_SHORTCUTS.get(args.category, args.category) if args.category else None
         if given and expect and given != expect:
             sys.exit(f"--category {args.category!r} 与规则 {args.rule_id} 的类别「{rule['category']}」"
                      f"（对应平台分类 {expect}）不一致")
         if not args.category:
             args.category = expect or rules_lib.category_to_folder(rule["category"])
+        if cohort:
+            notes.append(f"适用年级: {cohort}级 → 政策 {rule['policy_id']}（{rule['source_document']}）")
         notes.append(f"规则依据: {args.rule_id} {rule['activity_name']} "
                      f"（{rule['source_document']} {rule['source_clause_or_table']} p{rule['source_page']}）")
         if rule.get("cap"):
@@ -318,6 +335,9 @@ def main():
     ap.add_argument("--credit", default=None, help="申报学分，如 0.1（提供 --rule-id 时可省略）")
     ap.add_argument("--category", default=None, help="项目分类：分类下拉里的原文，或简写 三创/体育/思政（提供 --rule-id 时可省略）")
     ap.add_argument("--year", required=True, help="项目获奖自然年，如 2025")
+    ap.add_argument("--cohort", default=None,
+                    help="学生入学年级，如 2025/2024。决定适用政策与平台分类；"
+                         "2025级及以后用广大〔2025〕81号规则，2024级及以前用经统学院旧细则规则。建议总是提供")
     ap.add_argument("--collective", default="no", choices=["yes", "no"], help="是否集体项目，默认 no")
     ap.add_argument("--no-submit", action="store_true", help="只填到上传后，不点确定申请（验证用）")
     ap.add_argument("--rule-id", default=None, help="可选：规则库规则ID，用于核对申报学分与平台分类")
@@ -335,6 +355,7 @@ def main():
     if args.preview:
         plan = {
             "mode": "preview（未驱动浏览器，未提交）",
+            "cohort": args.cohort,
             "project_name": args.project_name,
             "credit": credit,
             "category": category,
