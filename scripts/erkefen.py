@@ -164,9 +164,12 @@ def cmd_shot(a):
         d.rectangle([x1 - i, y1 - i, x2 + i, y2 + i], outline=(255, 0, 0))
 
     stem = os.path.splitext(os.path.basename(a.pdf))[0]
-    # 类别文字总是在第 1 页页眉; 姓名行若也在第 1 页则整页单图, 否则拼接
-    if a.page == 1 and not a.force_stitch:
+    # 截图规则(用户规范): 目标页自带表头(标题+说明+表头行) → 整页直截;
+    # 仅第一页有表头 → 拼接第一页页眉 + 目标行上下文。
+    # 表头有无在生成前用 preview 目视判定, 不自动检测(扫描件无文字层, 像素相似度不可靠)。
+    if (a.page == 1 and not a.force_stitch) or a.no_stitch:
         final = target
+        print("模式: 整页直截（目标页自带表头）")
     else:
         header = render_page(a.pdf, a.header_page - 1)
         hc = header.crop((0, int(header.height * a.hy0), header.width, int(header.height * a.hy1)))
@@ -178,6 +181,7 @@ def cmd_shot(a):
         final = Image.new("RGB", (W, hc.height + row_ctx.height + 8), (255, 255, 255))
         final.paste(hc, (0, 0))
         final.paste(row_ctx, (0, hc.height + 8))
+        print("模式: 页眉拼接（表头仅在第一页）")
 
     out = os.path.join(outdir, stem + ".jpg")
     size = save_jpg_capped(final, out)
@@ -225,6 +229,8 @@ def main():
     s.add_argument("--hy1", type=float, default=0.32, help="页眉裁剪结束(高度分数)")
     s.add_argument("--ctx", type=int, default=140, help="拼接时行上下文像素")
     s.add_argument("--force-stitch", action="store_true")
+    s.add_argument("--no-stitch", action="store_true",
+                   help="目标页自带表头时整页直截，不拼接第一页页眉")
     s.set_defaults(f=cmd_shot)
 
     a = p.parse_args()

@@ -18,7 +18,8 @@ ERKEFEN = os.path.join(REPO, "scripts", "erkefen.py")
 
 
 def make_test_pdf(path):
-    """生成两页测试 PDF：第1页文字层表格（含类别页眉），第2页带绘制横线的表格。
+    """生成三页测试 PDF：第1页文字层表格（含类别页眉），第2页带绘制横线的表格，
+    第3页带完整表头（标题+表头行+数据行，模拟每页有表头的扫描件）。
 
     中文用 pymupdf 内置 china-s 字体，保证文字层可检索。
     """
@@ -36,7 +37,7 @@ def make_test_pdf(path):
     for r in rows:
         page.insert_text((72, y), "  ".join(r), fontsize=10, fontname="china-s")
         y += 24
-    # 第 2 页：绘制横线的表格（模拟扫描件表格结构）
+    # 第 2 页：绘制横线的表格（模拟扫描件表格结构），无表头行
     page2 = doc.new_page(width=595, height=842)
     page2.insert_text((72, 60), "活动参与名单（第二页）", fontsize=12, fontname="china-s")
     top, x0, x1 = 100, 60, 535
@@ -47,6 +48,17 @@ def make_test_pdf(path):
     for i, n in enumerate(names):
         page2.insert_text((72, top + 26 * i + 18), f"计算机2503  {n}  2025002{i:03d}  0.1",
                           fontsize=10, fontname="china-s")
+    # 第 3 页：完整表头 + 数据行（模拟每页都有表头的集体卡）
+    page3 = doc.new_page(width=595, height=842)
+    page3.insert_text((72, 60), "测试运动会集体卡", fontsize=14, fontname="china-s")
+    page3.insert_text((72, 90), "给予体育类加分 每次0.1学分", fontsize=11, fontname="china-s")
+    page3.draw_line((60, 120), (535, 120), width=0.8)
+    page3.insert_text((70, 140), "学院    班级    姓名    学分", fontsize=10, fontname="china-s")
+    page3.draw_line((60, 152), (535, 152), width=0.8)
+    for i, n in enumerate(["测试甲", "测试乙", "测试丙", "测试丁"]):
+        yy = 152 + 30 * i
+        page3.insert_text((70, yy + 20), f"统计学院  统计251  {n}  0.1", fontsize=10, fontname="china-s")
+        page3.draw_line((60, yy + 30), (535, yy + 30), width=0.8)
     doc.save(path)
     doc.close()
 
@@ -83,6 +95,7 @@ class ErkefenRegressionTest(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertTrue(os.path.isfile(os.path.join(tmp, "p01.png")))
         self.assertTrue(os.path.isfile(os.path.join(tmp, "p02.png")))
+        self.assertTrue(os.path.isfile(os.path.join(tmp, "p03.png")))
 
     # 10c. lines 检测第 2 页横线
     def test_lines(self):
@@ -119,6 +132,28 @@ class ErkefenRegressionTest(unittest.TestCase):
         jpg = os.path.join(self.work, "思政类", "测试活动加分证明.jpg")
         self.assertTrue(os.path.isfile(jpg))
         self.assertLessEqual(os.path.getsize(jpg), 500 * 1024)
+        # 第 2 页无表头 → 默认走页眉拼接
+        self.assertIn("页眉拼接", out.stdout)
+
+    # 10f. shot：目标页自带表头时 --no-stitch 整页直截（用户规范）
+    def test_shot_no_stitch_full_page(self):
+        out = self.run_ekf("shot", self.pdf, "--page", "3", "--category", "体育",
+                           "--outdir", self.work, "--top-index", "2",
+                           "--fx1", "0.1", "--fx2", "0.9", "--no-stitch")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("整页直截", out.stdout)
+        jpg = os.path.join(self.work, "体育类", "测试活动加分证明.jpg")
+        self.assertTrue(os.path.isfile(jpg))
+        self.assertLessEqual(os.path.getsize(jpg), 500 * 1024)
+        from PIL import Image
+        import numpy as np
+        im = Image.open(jpg)
+        self.assertEqual(im.format, "JPEG")
+        self.assertEqual(im.mode, "RGB")
+        # 整页直截 = 原页高宽比（不拼接，宽度即为页宽）
+        self.assertGreater(im.height, im.width)
+        arr = np.array(im.convert("RGB"))
+        self.assertTrue(((arr[:, :, 0] > 250) & (arr[:, :, 1] < 10) & (arr[:, :, 2] < 10)).any())
 
     def test_unknown_category_rejected(self):
         p = self.run_ekf("shot", self.pdf, "--page", "1", "--category", "不存在类",
